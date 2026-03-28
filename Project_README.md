@@ -106,12 +106,36 @@ coffee-promo-api/
 
 | Method | Path | 說明 |
 |--------|------|------|
-| `POST` | `/admin/scrape` | 手動觸發爬蟲 |
-| `DELETE` | `/admin/promotions/expired` | 清除過期資料 |
+| `POST` | `/scrape` | 手動觸發爬蟲 |
+| `DELETE` | `/promotions/expired` | 清除過期資料 |
 
 ### Cron 排程
 
 每日 UTC 6:00（台灣 14:00）自動執行 `scraper.scrapeAll()`
+
+### 觸發爬蟲的方式
+
+兩種方式效果相同（都會執行爬蟲），差異在觸發管道：
+
+| | `POST /scrape` | `/cdn-cgi/handler/scheduled` |
+|---|---|---|
+| 來源 | 你寫的程式碼（admin route） | wrangler 本地 dev 自動提供的測試端點 |
+| 需要認證 | 要（`X-API-Key` header） | 不用 |
+| 本地能用 | 是 | 是 |
+| 正式環境能用 | 是 | 否（僅本地 dev） |
+| 用途 | 隨時手動觸發爬蟲 | 模擬 cron 觸發，測試排程邏輯 |
+
+**本地開發**：
+
+```bash
+# 方式一：透過管理 API（需 API Key）
+curl -X POST http://127.0.0.1:8788/scrape -H "X-API-Key: your_key"
+
+# 方式二：模擬 cron 觸發（免認證，僅本地 dev）
+curl http://127.0.0.1:8788/cdn-cgi/handler/scheduled
+```
+
+**正式環境**：cron 自動觸發，或用 `POST /scrape` 手動觸發。
 
 ---
 
