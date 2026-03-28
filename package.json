@@ -1,0 +1,24 @@
+{
+  "name": "coffee-promo-api",
+  "version": "1.0.0",
+  "description": "Taiwan convenience store coffee promotion scraper API",
+  "type": "module",
+  "scripts": {
+    "types": "wrangler types",
+    "typecheck": "npm run types && tsc --noEmit",
+    "dev": "npm run typecheck && wrangler dev",
+    "deploy": "npm run typecheck && wrangler deploy",
+    "db:migrate:local": "wrangler d1 migrations apply coffee-promo-db --local",
+    "db:migrate:prod": "wrangler d1 migrations apply coffee-promo-db --env production"
+  },
+  "dependencies": {
+    "hono": "^4.11.4"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.12.14",
+    "@types/node": "^25.0.8",
+    "typescript": "^5.9.3",
+    "vitest": "^3.0.0",
+    "wrangler": "^4.59.2"
+  }
+}
