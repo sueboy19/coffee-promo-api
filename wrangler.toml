@@ -36,4 +36,4 @@ CPOK_FAMILYMART_URL = "https://cpok.tw/26869"
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "coffee-promo-db"
-database_id = ""  # production D1 id
+database_id = "bf0f1492-37fb-4878-957f-dd5b0e38269f"  # production D1 id
