@@ -24,6 +24,9 @@ CPOK_FAMILYMART_URL = "https://cpok.tw/26869"
 name = "coffee-promo-api-prod"
 compatibility_flags = ["nodejs_compat"]
 
+[env.production.triggers]
+crons = ["0 6 * * *"]
+
 [env.production.vars]
 ENVIRONMENT = "production"
 CORS_ORIGINS = "https://free2free.pages.dev"
