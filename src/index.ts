@@ -26,13 +26,9 @@ app.onError((err, c) => {
 app.route('/', promotionRoutes);
 app.route('/', adminRoutes);
 
-// ── HTTP handler ──
-
-export default app;
-
 // ── Cron handler (daily at UTC 6:00 = Taiwan 14:00) ──
 
-export const scheduled: ExportedHandlerScheduledHandler<Env> = async (event, env, ctx) => {
+const scheduled = async (event: ScheduledEvent, env: Env, ctx: ExecutionContext) => {
   console.log('[scheduled] Starting scheduled scrape at', new Date().toISOString());
 
   const scraper = new ScraperService(env);
@@ -51,4 +47,11 @@ export const scheduled: ExportedHandlerScheduledHandler<Env> = async (event, env
   } catch (err) {
     console.error('[scheduled] Scrape failed:', err);
   }
+};
+
+// ── Export handlers ──
+
+export default {
+  fetch: app.fetch.bind(app),
+  scheduled,
 };
