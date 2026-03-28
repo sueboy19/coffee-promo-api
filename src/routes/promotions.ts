@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { DB } from '../lib/db';
+import type { PromotionStatus } from '../types';
 
 const router = new Hono<{ Bindings: Env }>();
 
@@ -19,7 +20,7 @@ router.get('/promotions', async (c) => {
   const db = new DB(c.env.DB);
 
   const brand = c.req.query('brand') as any;
-  const status = c.req.query('status') || 'active';
+  const status = (c.req.query('status') || 'active') as PromotionStatus;
   const dealCategory = c.req.query('deal_category') as any;
   const limit = parseInt(c.req.query('limit') || '50');
   const offset = parseInt(c.req.query('offset') || '0');

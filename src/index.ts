@@ -32,7 +32,7 @@ export default app;
 
 // ── Cron handler (daily at UTC 6:00 = Taiwan 14:00) ──
 
-export const scheduled: ExportedHandlerScheduledHandler = async (event, env, ctx) => {
+export const scheduled: ExportedHandlerScheduledHandler<Env> = async (event, env, ctx) => {
   console.log('[scheduled] Starting scheduled scrape at', new Date().toISOString());
 
   const scraper = new ScraperService(env);

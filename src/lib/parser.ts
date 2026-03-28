@@ -27,68 +27,67 @@ export async function parsePromotionTables(response: Response): Promise<string[]
     })
     .on('thead th', {
       element(el) {
-        el.onEndTag(() => {
-          // Check after all text callbacks for this <th> have fired
-        });
+        // text callbacks fire before onEndTag
       },
       text: ({ text }) => {
         headerTexts.push(text.trim());
       },
     })
     .on('thead', {
-      element() {},
-      onEndTag() {
-        // After all <th> collected, check if this is a promotion table
-        const headerStr = headerTexts.join('');
-        if (
-          headerStr.includes('優惠') ||
-          headerStr.includes('活動') ||
-          headerStr.includes('價')
-        ) {
-          inTargetTable = true;
-        }
+      element(el) {
+        el.onEndTag(() => {
+          // After all <th> collected, check if this is a promotion table
+          const headerStr = headerTexts.join('');
+          if (
+            headerStr.includes('優惠') ||
+            headerStr.includes('活動') ||
+            headerStr.includes('價')
+          ) {
+            inTargetTable = true;
+          }
+        });
       },
     })
     .on('s', {
-      element() {
+      element(el) {
         inStrikethrough = true;
-      },
-      onEndTag() {
-        inStrikethrough = false;
+        el.onEndTag(() => {
+          inStrikethrough = false;
+        });
       },
     })
     .on('del', {
-      element() {
+      element(el) {
         inStrikethrough = true;
-      },
-      onEndTag() {
-        inStrikethrough = false;
+        el.onEndTag(() => {
+          inStrikethrough = false;
+        });
       },
     })
     .on('tbody tr', {
-      element() {
+      element(el) {
         currentRow = [];
-      },
-      onEndTag() {
-        if (inTargetTable && !inStrikethrough && currentRow.length >= 2) {
-          rows.push([...currentRow]);
-        }
-        currentRow = [];
+        el.onEndTag(() => {
+          if (inTargetTable && !inStrikethrough && currentRow.length >= 2) {
+            rows.push([...currentRow]);
+          }
+          currentRow = [];
+        });
       },
     })
     .on('td', {
-      element() {
+      element(el) {
         currentCellText = '';
+        el.onEndTag(() => {
+          const cleaned = currentCellText
+            .replace(/👉前往購買/g, '')
+            .replace(/查詢限定門市/g, '')
+            .trim();
+          currentRow.push(cleaned);
+        });
       },
       text: ({ text }) => {
         currentCellText += text;
-      },
-      onEndTag() {
-        const cleaned = currentCellText
-          .replace(/👉前往購買/g, '')
-          .replace(/查詢限定門市/g, '')
-          .trim();
-        currentRow.push(cleaned);
       },
     });
 
