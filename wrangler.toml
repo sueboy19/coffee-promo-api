@@ -9,7 +9,7 @@ port = 8788
 [[d1_databases]]
 binding = "DB"
 database_name = "coffee-promo-db"
-database_id = ""  # 建立 D1 後填入
+database_id = "00000000-0000-0000-0000-000000000000"  # 本地 dev 佔位，正式環境需替換
 
 [triggers]
 crons = ["0 6 * * *"]
