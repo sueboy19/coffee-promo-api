@@ -33,3 +33,6 @@ coverage/
 
 # TypeScript cache
 *.tsbuildinfo
+
+# Cloudflare Workers
+wrangler.toml
