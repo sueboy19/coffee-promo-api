@@ -1,8 +1,44 @@
 import { Hono } from 'hono';
 import { DB } from '../lib/db';
-import type { PromotionStatus } from '../types';
+import { classifyProduct, PRODUCT_CATEGORY_LABELS } from '../lib/normalize';
+import type { PromotionStatus, ProductCategory } from '../types';
 
 const router = new Hono<{ Bindings: Env }>();
+
+// ── Helpers ──
+
+interface GroupedPromotions {
+  [storeBrand: string]: {
+    [productCategory: string]: {
+      label: string;
+      items: any[];
+    };
+  };
+}
+
+function groupPromotions(promotions: any[]): GroupedPromotions {
+  const grouped: GroupedPromotions = {};
+
+  for (const promo of promotions) {
+    const store = promo.store_brand;
+    const pCategory: ProductCategory = classifyProduct(promo.product_name);
+
+    if (!grouped[store]) grouped[store] = {};
+    if (!grouped[store][pCategory]) {
+      grouped[store][pCategory] = {
+        label: PRODUCT_CATEGORY_LABELS[pCategory],
+        items: [],
+      };
+    }
+
+    grouped[store][pCategory].items.push({
+      ...promo,
+      product_category: pCategory,
+    });
+  }
+
+  return grouped;
+}
 
 // ── Health check ──
 
@@ -14,7 +50,7 @@ router.get('/', (c) => {
   });
 });
 
-// ── List promotions ──
+// ── List promotions (grouped by store & product category) ──
 
 router.get('/promotions', async (c) => {
   const db = new DB(c.env.DB);
@@ -33,21 +69,28 @@ router.get('/promotions', async (c) => {
     offset,
   });
 
+  const grouped = groupPromotions(result.data);
+
   return c.json({
-    data: result.data,
+    data: grouped,
     total: result.total,
     limit,
     offset,
   });
 });
 
-// ── Active promotions (shortcut) ──
+// ── Active promotions (grouped by store & product category) ──
 
 router.get('/promotions/active', async (c) => {
   const db = new DB(c.env.DB);
   const brand = c.req.query('brand') as any;
   const promotions = await db.listActivePromotions(brand);
-  return c.json({ data: promotions, total: promotions.length });
+  const grouped = groupPromotions(promotions);
+
+  return c.json({
+    data: grouped,
+    total: promotions.length,
+  });
 });
 
 // ── Single promotion ──
@@ -61,7 +104,15 @@ router.get('/promotions/:id', async (c) => {
     return c.json({ error: 'Promotion not found' }, 404);
   }
 
-  return c.json({ data: promotion });
+  const pCategory = classifyProduct(promotion.product_name);
+
+  return c.json({
+    data: {
+      ...promotion,
+      product_category: pCategory,
+      product_category_label: PRODUCT_CATEGORY_LABELS[pCategory],
+    },
+  });
 });
 
 // ── Health with DB info ──

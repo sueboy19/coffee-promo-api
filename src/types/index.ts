@@ -1,5 +1,6 @@
 export type StoreBrand = '7-11' | 'familymart';
 export type DealCategory = 'bogo' | 'buy_n_get_m' | 'discount' | 'fixed_price' | 'bundle' | 'other';
+export type ProductCategory = 'coffee' | 'tea' | 'milk' | 'juice' | 'bread' | 'dessert' | 'other';
 export type PromotionStatus = 'upcoming' | 'active' | 'expired';
 export type ScrapeSource = 'cpok' | 'recurring' | 'manual';
 export type ScrapeLogStatus = 'success' | 'partial' | 'failed';

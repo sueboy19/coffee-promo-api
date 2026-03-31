@@ -1,4 +1,4 @@
-import type { DealCategory } from '../types';
+import type { DealCategory, ProductCategory } from '../types';
 
 // ── Date Parsing ──
 
@@ -135,3 +135,56 @@ export function normalizeRow(row: string[], brand: string): NormalizedPromotion 
     end_date: end,
   };
 }
+
+// ── Product Category Classification ──
+
+const PRODUCT_KEYWORDS: { category: ProductCategory; keywords: string[] }[] = [
+  {
+    category: 'coffee',
+    keywords: ['咖啡', '拿鐵', '美式', '拿铁', '卡布奇諾', '卡布奇诺', '摩卡', '濃縮', '浓缩', 'espree', 'café', 'cafe', 'latte', 'cappuccino', 'mocha', '濾掛', '滤挂', '即溶', '即溶', 'ucc', '伯朗', 'mr.brown', '褐色', '職人', '职人'],
+  },
+  {
+    category: 'tea',
+    keywords: ['茶', '紅茶', '绿茶', '綠茶', '烏龍', '乌龙', '奶茶', '青茶', '麥茶', '麦茶', '花茶', '茶飲', '茶饮', 'tea', '錫蘭', '锡兰', '伯爵', 'jasmine'],
+  },
+  {
+    category: 'milk',
+    keywords: ['牛奶', '鮮奶', '鲜奶', '鮮乳', '鲜乳', '乳品', '奶', 'milk', '豆漿', '豆浆', '豆奶', '優格', '优格', '優酪乳', '优酪乳', '乳'],
+  },
+  {
+    category: 'juice',
+    keywords: ['果汁', 'juice', '氣泡', '气泡', '汽水', '可樂', '可乐', '沙士', '運動', '饮料', '飲料', ' soda', 'water', '礦泉水', '純水'],
+  },
+  {
+    category: 'bread',
+    keywords: ['麵包', '面包', '吐司', '三明治', 'sandwich', '貝果', '贝果', '漢堡', '汉堡', '飯糰', '饭团', '沙拉', 'salad'],
+  },
+  {
+    category: 'dessert',
+    keywords: ['蛋糕', '甜點', '甜点', '布丁', '果凍', '果冻', '巧克力', 'chocolate', '餅乾', '饼干', 'donut', '甜甜圈', '冰', '冰淇淋', '霜淇淋', '霜', '提拉米蘇', '舒芙蕾', '大福', '麻糬'],
+  },
+];
+
+export function classifyProduct(productName: string): ProductCategory {
+  if (!productName) return 'other';
+  const lower = productName.toLowerCase();
+
+  for (const { category, keywords } of PRODUCT_KEYWORDS) {
+    for (const kw of keywords) {
+      if (lower.includes(kw.toLowerCase())) {
+        return category;
+      }
+    }
+  }
+  return 'other';
+}
+
+export const PRODUCT_CATEGORY_LABELS: Record<ProductCategory, string> = {
+  coffee: '咖啡',
+  tea: '茶飲',
+  milk: '牛奶/乳品',
+  juice: '果汁/飲料',
+  bread: '麵包/輕食',
+  dessert: '甜點/零食',
+  other: '其他',
+};
