@@ -58,8 +58,8 @@ router.get('/promotions', async (c) => {
   const brand = c.req.query('brand') as any;
   const status = (c.req.query('status') || 'active') as PromotionStatus;
   const dealCategory = c.req.query('deal_category') as any;
-  const limit = parseInt(c.req.query('limit') || '50');
-  const offset = parseInt(c.req.query('offset') || '0');
+  const limit = Math.max(1, Math.min(parseInt(c.req.query('limit') || '50') || 50, 100));
+  const offset = Math.max(0, parseInt(c.req.query('offset') || '0') || 0);
 
   const result = await db.listPromotions({
     brand,
@@ -98,6 +98,9 @@ router.get('/promotions/active', async (c) => {
 router.get('/promotions/:id', async (c) => {
   const db = new DB(c.env.DB);
   const id = parseInt(c.req.param('id'));
+  if (isNaN(id)) {
+    return c.json({ error: 'Invalid ID' }, 400);
+  }
   const promotion = await db.getPromotionById(id);
 
   if (!promotion) {
@@ -139,7 +142,8 @@ router.get('/health', async (c) => {
       },
     });
   } catch (err) {
-    return c.json({ status: 'error', db: 'disconnected', error: String(err) }, 500);
+    console.error('Health check DB error:', err);
+    return c.json({ status: 'error', db: 'disconnected' }, 500);
   }
 });
 

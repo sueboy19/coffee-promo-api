@@ -18,7 +18,7 @@ app.use('*', cors({
 
 app.onError((err, c) => {
   console.error('Unhandled error:', err);
-  return c.json({ error: err.message || 'Internal Server Error' }, 500);
+  return c.json({ error: 'Internal Server Error' }, 500);
 });
 
 // ── Routes ──

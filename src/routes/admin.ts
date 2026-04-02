@@ -38,7 +38,7 @@ router.post('/scrape', async (c) => {
 
 router.delete('/promotions/expired', async (c) => {
   const db = new DB(c.env.DB);
-  const olderThanDays = parseInt(c.req.query('older_than_days') || '30');
+  const olderThanDays = Math.max(1, Math.min(parseInt(c.req.query('older_than_days') || '30') || 30, 365));
   const deleted = await db.deleteExpiredPromotions(olderThanDays);
   return c.json({ deleted });
 });
