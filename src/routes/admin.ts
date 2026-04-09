@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { ScraperService } from '../services/scraper';
 import { DB } from '../lib/db';
+import type { StoreBrand } from '../types';
 
 const router = new Hono<{ Bindings: Env }>();
 
@@ -19,17 +20,12 @@ router.use('*', async (c, next) => {
 router.post('/scrape', async (c) => {
   const scraper = new ScraperService(c.env);
   const body = await c.req.json().catch(() => ({}));
-  const requestedBrands = body.brands as string[] | undefined;
+  const requestedBrands = (body.brands as string[] | undefined)?.filter(Boolean) as StoreBrand[] | undefined;
 
-  const results = await scraper.scrapeAll();
-
-  // Filter results if specific brands requested
-  const filtered = requestedBrands
-    ? results.filter(r => requestedBrands.includes(r.brand))
-    : results;
+  const results = await scraper.scrapeAll(requestedBrands);
 
   return c.json({
-    data: filtered,
+    data: results,
     timestamp: new Date().toISOString(),
   });
 });

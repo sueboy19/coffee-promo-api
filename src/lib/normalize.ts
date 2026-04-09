@@ -1,5 +1,11 @@
 import type { DealCategory, ProductCategory } from '../types';
 
+// ── Taiwan timezone helper ──
+
+export function getTodayTaiwan(): string {
+  return new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' });
+}
+
 // ── Date Parsing ──
 
 export interface DateRange {

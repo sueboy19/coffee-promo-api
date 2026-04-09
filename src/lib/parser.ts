@@ -15,20 +15,18 @@ export async function parsePromotionTables(response: Response): Promise<string[]
   let headerTexts: string[] = [];
   let inTargetTable = false;
   let inStrikethrough = false;
+  let rowHadStrikethrough = false;
   let currentCellText = '';
 
   const rewriter = new HTMLRewriter()
     .on('table', {
       element() {
-        // Reset per-table state
         headerTexts = [];
         inTargetTable = false;
       },
     })
     .on('thead th', {
-      element(el) {
-        // text callbacks fire before onEndTag
-      },
+      element() {},
       text: ({ text }) => {
         headerTexts.push(text.trim());
       },
@@ -36,7 +34,6 @@ export async function parsePromotionTables(response: Response): Promise<string[]
     .on('thead', {
       element(el) {
         el.onEndTag(() => {
-          // After all <th> collected, check if this is a promotion table
           const headerStr = headerTexts.join('');
           if (
             headerStr.includes('優惠') ||
@@ -51,6 +48,7 @@ export async function parsePromotionTables(response: Response): Promise<string[]
     .on('s', {
       element(el) {
         inStrikethrough = true;
+        rowHadStrikethrough = true;
         el.onEndTag(() => {
           inStrikethrough = false;
         });
@@ -59,6 +57,7 @@ export async function parsePromotionTables(response: Response): Promise<string[]
     .on('del', {
       element(el) {
         inStrikethrough = true;
+        rowHadStrikethrough = true;
         el.onEndTag(() => {
           inStrikethrough = false;
         });
@@ -67,8 +66,9 @@ export async function parsePromotionTables(response: Response): Promise<string[]
     .on('tbody tr', {
       element(el) {
         currentRow = [];
+        rowHadStrikethrough = false;
         el.onEndTag(() => {
-          if (inTargetTable && !inStrikethrough && currentRow.length >= 2) {
+          if (inTargetTable && !rowHadStrikethrough && currentRow.length >= 2) {
             rows.push([...currentRow]);
           }
           currentRow = [];
@@ -91,7 +91,6 @@ export async function parsePromotionTables(response: Response): Promise<string[]
       },
     });
 
-  // CRITICAL: Must consume the body for handlers to fire
   await rewriter.transform(response).text();
   return rows;
 }

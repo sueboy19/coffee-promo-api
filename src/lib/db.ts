@@ -7,6 +7,7 @@ import type {
   PromotionStatus,
   ScrapeLogStatus,
 } from '../types';
+import { getTodayTaiwan } from './normalize';
 
 export class DB {
   /** Exposed for direct SQL access when needed */
@@ -87,7 +88,7 @@ export class DB {
   }
 
   async listActivePromotions(brand?: StoreBrand): Promise<Promotion[]> {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getTodayTaiwan();
     let sql = `SELECT * FROM promotions WHERE status = 'active' AND (end_date IS NULL OR end_date >= ?)`;
     const values: any[] = [today];
 
@@ -150,37 +151,37 @@ export class DB {
     source: string;
     source_url?: string;
   }): Promise<{ id: number; added: boolean }> {
-    const existing = await this.findExistingPromotion(p.store_brand, p.product_name, p.start_date, p.end_date);
+    const result = await this.d1
+      .prepare(
+        `INSERT INTO promotions (store_brand, product_name, deal_type, deal_category, start_date, end_date, status, source, source_url, scraped_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, datetime('now'))
+         ON CONFLICT(store_brand, product_name, start_date, end_date) DO UPDATE SET
+           deal_type = excluded.deal_type,
+           deal_category = excluded.deal_category,
+           status = 'active',
+           source_url = excluded.source_url,
+           scraped_at = datetime('now'),
+           updated_at = datetime('now')`
+      )
+      .bind(
+        p.store_brand, p.product_name, p.deal_type, p.deal_category,
+        p.start_date, p.end_date, p.source, p.source_url ?? null
+      )
+      .run();
 
-    if (existing) {
-      if (existing.deal_type !== p.deal_type || existing.deal_category !== p.deal_category) {
-        await this.updatePromotion(existing.id, {
-          deal_type: p.deal_type,
-          deal_category: p.deal_category,
-          start_date: p.start_date,
-          end_date: p.end_date,
-          status: 'active',
-        });
-      }
-      await this.d1
-        .prepare('UPDATE promotions SET scraped_at = datetime(\'now\'), updated_at = datetime(\'now\') WHERE id = ?')
-        .bind(existing.id)
-        .run();
-      return { id: existing.id, added: false };
+    const id = result.meta.last_row_id;
+    if (id > 0) {
+      return { id, added: true };
     }
 
-    const created = await this.createPromotion({
-      store_brand: p.store_brand,
-      product_name: p.product_name,
-      deal_type: p.deal_type,
-      deal_category: p.deal_category,
-      start_date: p.start_date,
-      end_date: p.end_date,
-      status: 'active',
-      source: p.source,
-      source_url: p.source_url,
-    });
-    return { id: created.id, added: true };
+    const existing = await this.d1
+      .prepare(
+        `SELECT id FROM promotions WHERE store_brand = ? AND product_name = ? AND start_date IS ? AND end_date IS ? AND status != 'expired'`
+      )
+      .bind(p.store_brand, p.product_name, p.start_date, p.end_date)
+      .first<{ id: number }>();
+
+    return { id: existing!.id, added: false };
   }
 
   // ── Mark stale promotions as expired ──
@@ -188,7 +189,7 @@ export class DB {
   async markExpiredPromotions(activeIds: number[], brand: StoreBrand): Promise<number> {
     if (activeIds.length === 0) return 0;
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getTodayTaiwan();
     const placeholders = activeIds.map(() => '?').join(',');
     const result = await this.d1
       .prepare(
@@ -231,5 +232,57 @@ export class DB {
       .prepare(`SELECT * FROM scrape_logs WHERE source = ? ORDER BY started_at DESC LIMIT 1`)
       .bind(source)
       .first<ScrapeLog>();
+  }
+
+  async deleteOldScrapeLogs(olderThanDays: number = 90): Promise<number> {
+    const result = await this.d1
+      .prepare(`DELETE FROM scrape_logs WHERE started_at < datetime('now', '-' || ? || ' days')`)
+      .bind(olderThanDays)
+      .run();
+    return result.meta.changes || 0;
+  }
+
+  // ── Recurring Promotions ──
+
+  async upsertRecurringPromotion(p: {
+    store_brand: StoreBrand;
+    product_name: string;
+    deal_type: string;
+    deal_category: DealCategory;
+    start_date: string | null;
+    end_date: string | null;
+    recurring_pattern: string;
+    source: string;
+  }): Promise<{ id: number; added: boolean }> {
+    const result = await this.d1
+      .prepare(
+        `INSERT INTO promotions (store_brand, product_name, deal_type, deal_category, start_date, end_date, status, source, is_recurring, recurring_pattern, scraped_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'active', ?, 1, ?, datetime('now'))
+         ON CONFLICT(store_brand, product_name, start_date, end_date) DO UPDATE SET
+           deal_type = excluded.deal_type,
+           deal_category = excluded.deal_category,
+           status = 'active',
+           scraped_at = datetime('now'),
+           updated_at = datetime('now')`
+      )
+      .bind(
+        p.store_brand, p.product_name, p.deal_type, p.deal_category,
+        p.start_date, p.end_date, p.source, p.recurring_pattern
+      )
+      .run();
+
+    const id = result.meta.last_row_id;
+    if (id > 0) {
+      return { id, added: true };
+    }
+
+    const existing = await this.d1
+      .prepare(
+        `SELECT id FROM promotions WHERE store_brand = ? AND product_name = ? AND start_date IS ? AND end_date IS ? AND status != 'expired'`
+      )
+      .bind(p.store_brand, p.product_name, p.start_date, p.end_date)
+      .first<{ id: number }>();
+
+    return { id: existing!.id, added: false };
   }
 }
