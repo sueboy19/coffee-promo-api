@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { DB } from '../lib/db';
-import { classifyProduct, PRODUCT_CATEGORY_LABELS } from '../lib/normalize';
+import { classifyProduct, PRODUCT_CATEGORY_LABELS, toTaiwanTime } from '../lib/normalize';
 import type { Promotion, PromotionStatus, ProductCategory, StoreBrand, DealCategory } from '../types';
 
 const VALID_BRANDS: readonly string[] = ['7-11', 'familymart'];
@@ -15,6 +15,9 @@ const router = new Hono<{ Bindings: Env }>();
 
 interface PromotionItem extends Promotion {
   product_category: ProductCategory;
+  scraped_at_tw: string | null;
+  created_at_tw: string | null;
+  updated_at_tw: string | null;
 }
 
 interface GroupedPromotions {
@@ -44,6 +47,9 @@ function groupPromotions(promotions: Promotion[]): GroupedPromotions {
     grouped[store][pCategory].items.push({
       ...promo,
       product_category: pCategory,
+      scraped_at_tw: toTaiwanTime(promo.scraped_at),
+      created_at_tw: toTaiwanTime(promo.created_at),
+      updated_at_tw: toTaiwanTime(promo.updated_at),
     });
   }
 
@@ -169,6 +175,9 @@ router.get('/promotions/:id', async (c) => {
       ...promotion,
       product_category: pCategory,
       product_category_label: PRODUCT_CATEGORY_LABELS[pCategory],
+      scraped_at_tw: toTaiwanTime(promotion.scraped_at),
+      created_at_tw: toTaiwanTime(promotion.created_at),
+      updated_at_tw: toTaiwanTime(promotion.updated_at),
     },
   });
 });

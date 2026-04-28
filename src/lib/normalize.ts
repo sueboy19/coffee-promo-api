@@ -6,6 +6,18 @@ export function getTodayTaiwan(): string {
   return new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' });
 }
 
+/** Convert a UTC datetime string (e.g. "2026-04-28 13:27:33") to Taiwan timezone. */
+export function toTaiwanTime(utcStr: string | null): string | null {
+  if (!utcStr) return null;
+  const d = new Date(utcStr + 'Z');
+  if (isNaN(d.getTime())) return utcStr;
+  return d.toLocaleString('sv-SE', { timeZone: 'Asia/Taipei' }).replace(',', '');
+}
+
+function getCurrentYearTaiwan(): number {
+  return parseInt(getTodayTaiwan().substring(0, 4), 10);
+}
+
 // ── Date Parsing ──
 
 export interface DateRange {
@@ -16,19 +28,25 @@ export interface DateRange {
 /**
  * Parse Chinese date range strings from cpok.tw tables.
  *
- * Examples:
- *   "2026/1/5~2/6"     → { start: "2026-01-05", end: "2026-02-06" }
- *   "2026/1/5~2026/2/6" → { start: "2026-01-05", end: "2026-02-06" }
- *   "~2026/1/13"        → { start: null, end: "2026-01-13" }
- *   "到公告截止"          → { start: null, end: null }
+ * Supported formats:
+ *   "2026/1/5~2/6"      → { start: "2026-01-05", end: "2026-02-06" }
+ *   "2026/1/5~2026/2/6"  → { start: "2026-01-05", end: "2026-02-06" }
+ *   "~2026/1/13"         → { start: null, end: "2026-01-13" }
+ *   "8/1~8/3"            → { start: "2026-08-01", end: "2026-08-03" }  (short form)
+ *   "~12/31"             → { start: null, end: "2026-12-31" }           (short form)
+ *   "~2910/12/31"        → { start: null, end: null }                   (anomalous year)
+ *   "到公告截止"           → { start: null, end: null }
  */
 export function parseDateRange(raw: string): DateRange {
   if (!raw) return { start: null, end: null };
 
   const trimmed = raw.replace(/\s+/g, '').trim();
 
+  // Strip trailing notes like "兌換期限：2026/1/31"
+  const cleanDate = trimmed.replace(/兌換期限：?\d{4}\/\d{1,2}\/\d{1,2}/g, '').trim();
+
   // Pattern: "2026/1/5~2/6" or "2026/1/5~2026/2/6"
-  const fullRange = trimmed.match(
+  const fullRange = cleanDate.match(
     /(\d{4})\/(\d{1,2})\/(\d{1,2})[~\-至](\d{1,4})\/?(\d{0,2})\/?(\d{0,2})/
   );
   if (fullRange) {
@@ -38,31 +56,65 @@ export function parseDateRange(raw: string): DateRange {
     const endPart3 = fullRange[6];
 
     const start = formatDate(year, fullRange[2], fullRange[3]);
+    const yearNum = parseInt(year, 10);
+    if (yearNum > 2100) return { start: null, end: null };
 
     let end: string;
     if (endPart1.length === 4) {
-      // Full year: "2026/2/6"
+      if (parseInt(endPart1, 10) > 2100) return { start: null, end: null };
       end = formatDate(endPart1, endPart2, endPart3);
     } else {
-      // Month/day only: "2/6"
       end = formatDate(year, endPart1, endPart2);
     }
     return { start, end };
   }
 
   // Pattern: "~2026/1/13" or "-2026/1/13"
-  const endOnly = trimmed.match(/[~\-至](\d{4})\/(\d{1,2})\/(\d{1,2})/);
+  const endOnly = cleanDate.match(/[~\-至](\d{4})\/(\d{1,2})\/(\d{1,2})/);
   if (endOnly) {
+    const yearNum = parseInt(endOnly[1], 10);
+    if (yearNum > 2100) return { start: null, end: null };
     return { start: null, end: formatDate(endOnly[1], endOnly[2], endOnly[3]) };
   }
 
+  // Short-form range: "8/1~8/3" or "1/5~2/6" (no year)
+  const shortRange = cleanDate.match(
+    /(\d{1,2})\/(\d{1,2})[~\-至](\d{1,2})\/(\d{1,2})/
+  );
+  if (shortRange) {
+    const year = inferYear(parseInt(shortRange[1], 10), parseInt(shortRange[2], 10));
+    const start = formatDate(String(year), shortRange[1], shortRange[2]);
+    const endMonth = parseInt(shortRange[3], 10);
+    const endDay = parseInt(shortRange[4], 10);
+    const endYear = endMonth < parseInt(shortRange[1], 10) ? year + 1 : year;
+    const end = formatDate(String(endYear), shortRange[3], shortRange[4]);
+    return { start, end };
+  }
+
+  // Short-form end only: "~12/31" or "~1/15"
+  const shortEndOnly = cleanDate.match(/[~\-至](\d{1,2})\/(\d{1,2})$/);
+  if (shortEndOnly) {
+    const month = parseInt(shortEndOnly[1], 10);
+    const day = parseInt(shortEndOnly[2], 10);
+    const year = inferYear(month, day);
+    return { start: null, end: formatDate(String(year), shortEndOnly[1], shortEndOnly[2]) };
+  }
+
   // Pattern: "2026/1/5~" (start only, no end)
-  const startOnly = trimmed.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})[~\-至]$/);
+  const startOnly = cleanDate.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})[~\-至]$/);
   if (startOnly) {
     return { start: formatDate(startOnly[1], startOnly[2], startOnly[3]), end: null };
   }
 
   return { start: null, end: null };
+}
+
+/** Infer the year for a short-form date. If the date has already passed this year, use next year. */
+function inferYear(month: number, day: number): number {
+  const currentYear = getCurrentYearTaiwan();
+  const today = getTodayTaiwan();
+  const candidate = `${currentYear}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  return candidate >= today ? currentYear : currentYear + 1;
 }
 
 function formatDate(year: string, month: string, day: string): string {
@@ -76,20 +128,30 @@ export interface NormalizedDeal {
   display: string;
 }
 
+const INVALID_DEAL_TYPES = new Set(['前往購買', '-', '']);
+
 const DEAL_PATTERNS: { pattern: RegExp; category: DealCategory }[] = [
   { pattern: /買[一1]送[一1]/, category: 'bogo' },
   { pattern: /買\s*(\d+|[兩二三四五六七八九十])\s*送\s*(\d+|[兩二三四五六七八九十])/, category: 'buy_n_get_m' },
   { pattern: /第\s*[二2]\s*杯/, category: 'discount' },
   { pattern: /第[二2]杯半價/, category: 'discount' },
-  { pattern: /\d+折$/, category: 'discount' },
-  { pattern: /^\d+元$/, category: 'fixed_price' },
-  { pattern: /\d+杯\d+元/, category: 'bundle' },
+  { pattern: /\d+折/, category: 'discount' },
+  { pattern: /半價/, category: 'discount' },
+  { pattern: /加\d+元多一件/, category: 'discount' },
+  { pattern: /^\d[\d,]*元$/, category: 'fixed_price' },
+  { pattern: /\d+杯[\d,]+元/, category: 'bundle' },
+  { pattern: /[\d,]+元.*杯/, category: 'bundle' },
+  { pattern: /\d+杯.*[\d,]+元/, category: 'bundle' },
 ];
 
 export function normalizeDealType(raw: string): NormalizedDeal {
   if (!raw) return { category: 'other', display: raw };
 
   const cleaned = raw.trim();
+
+  if (INVALID_DEAL_TYPES.has(cleaned)) {
+    return { category: 'other', display: cleaned };
+  }
 
   for (const { pattern, category } of DEAL_PATTERNS) {
     if (pattern.test(cleaned)) {
@@ -119,18 +181,29 @@ export interface NormalizedPromotion {
 export function normalizeRow(row: string[], brand: string): NormalizedPromotion | null {
   if (row.length < 2) return null;
 
-  // cpok.tw tables typically have 3 columns: 優惠項目 | 優惠價 | 活動時間
-  // Some tables may have 2 columns (missing date)
   const product_name = row[0]?.trim();
   const deal_type = row[1]?.trim();
   const date_range = row[2]?.trim() || '';
 
   if (!product_name || !deal_type) return null;
 
+  // Skip invalid deal types
+  if (INVALID_DEAL_TYPES.has(deal_type)) return null;
+
   // Skip menu items (prices like "35元" without deal keywords)
   if (/^\d+元$/.test(deal_type) && !product_name.includes('買')) return null;
 
-  const { category, display } = normalizeDealType(deal_type);
+  let { category, display } = normalizeDealType(deal_type);
+
+  // If deal_type didn't produce a useful category, check product_name for deal keywords
+  if (category === 'other') {
+    if (/買[一1]送[一1]/.test(product_name)) {
+      category = 'bogo';
+    } else if (/買\s*\d+\s*送\s*\d+/.test(product_name)) {
+      category = 'buy_n_get_m';
+    }
+  }
+
   const { start, end } = parseDateRange(date_range);
 
   return {

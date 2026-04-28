@@ -17,12 +17,14 @@ export async function parsePromotionTables(response: Response): Promise<string[]
   let inStrikethrough = false;
   let rowHadStrikethrough = false;
   let currentCellText = '';
+  let tableColumnCount = 0;
 
   const rewriter = new HTMLRewriter()
     .on('table', {
       element() {
         headerTexts = [];
         inTargetTable = false;
+        tableColumnCount = 0;
       },
     })
     .on('thead th', {
@@ -35,10 +37,12 @@ export async function parsePromotionTables(response: Response): Promise<string[]
       element(el) {
         el.onEndTag(() => {
           const headerStr = headerTexts.join('');
+          tableColumnCount = headerTexts.length;
           if (
-            headerStr.includes('優惠') ||
+            tableColumnCount >= 3 &&
+            (headerStr.includes('優惠') ||
             headerStr.includes('活動') ||
-            headerStr.includes('價')
+            headerStr.includes('價'))
           ) {
             inTargetTable = true;
           }
